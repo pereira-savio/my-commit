@@ -1,10 +1,4 @@
 {
-  "github.copilot.chat.useEditorContext": true,
-  "[git-commit]": {
-    "editor.rulers": [72],
-    "editor.wordWrap": "on",
-    "editor.lineNumbers": "off"
-  },
   "files.exclude": {
     "**/.DS_Store": true,
     "**/node_modules": true
