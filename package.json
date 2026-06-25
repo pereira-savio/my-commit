@@ -39,28 +39,22 @@
   "contributes": {
     "commands": [
       {
-        "command": "my-commit.createCommit",
-        "title": "My Commit: Criar mensagem de commit",
+        "command": "my-commit.configureCommit",
+        "title": "My Commit: Configurar commit",
         "icon": "$(git-commit)",
-        "category": "My Commit"
-      },
-      {
-        "command": "my-commit.validateCommit",
-        "title": "My Commit: Validar mensagem atual",
-        "icon": "$(check)",
         "category": "My Commit"
       }
     ],
     "menus": {
       "scm/title": [
         {
-          "command": "my-commit.createCommit",
+          "command": "my-commit.configureCommit",
           "group": "navigation"
         }
       ],
       "scm/resourceGroup/context": [
         {
-          "command": "my-commit.createCommit",
+          "command": "my-commit.configureCommit",
           "group": "inline",
           "when": "scmResourceGroup == workingTree"
         }

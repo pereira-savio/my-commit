@@ -23,11 +23,11 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBarItem.command = 'my-commit.createCommit';
   context.subscriptions.push(statusBarItem);
 
-  // ── Comando: Criar commit ──────────────────────────────────────────────────
-  const createCommand = vscode.commands.registerCommand(
-    'my-commit.createCommit',
+  // ── Comando: Configurar commit ─────────────────────────────────────────────
+  const configureCommand = vscode.commands.registerCommand(
+    'my-commit.configureCommit',
     async () => {
-      console.log('[My Commit] Comando de criar commit acionado');
+      console.log('[My Commit] Comando de configurar commit acionado');
       
       // Abre o painel de configurações e aguarda o usuário salvar
       const commitConfig = await ConfigPanel.show();
@@ -49,32 +49,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   );
 
-  // ── Comando: Validar commit atual ──────────────────────────────────────────
-  const validateCommand = vscode.commands.registerCommand(
-    'my-commit.validateCommit',
-    () => {
-      const repo = getFirstRepository();
-      if (!repo) {
-        vscode.window.showWarningMessage(
-          'Nenhum repositório Git encontrado na área de trabalho.'
-        );
-        return;
-      }
-
-      const result = validateCommitMessage(repo.inputBox.value);
-      if (result.valid) {
-        vscode.window.showInformationMessage(
-          '✔ Mensagem válida no padrão Conventional Commits!'
-        );
-      } else {
-        vscode.window.showWarningMessage(
-          `✘ Commit inválido: ${result.message}`
-        );
-      }
-    }
-  );
-
-  context.subscriptions.push(createCommand, validateCommand);
+  context.subscriptions.push(configureCommand);
 
   // ── Polling para validação na status bar ───────────────────────────────────
   startStatusBarPolling(context);
