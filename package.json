@@ -1,0 +1,108 @@
+{
+  "name": "my-commit",
+  "displayName": "My Commit",
+  "description": "Padroniza mensagens de commit usando Conventional Commits com um wizard interativo no Source Control",
+  "version": "0.1.0",
+  "publisher": "pereira-savio",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "commit",
+    "conventional commits",
+    "commitlint",
+    "scm"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pereira-savio/my-commit"
+  },
+  "bugs": {
+    "url": "https://github.com/pereira-savio/my-commit/issues"
+  },
+  "homepage": "https://github.com/pereira-savio/my-commit#readme",
+  "license": "MIT",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "my-commit.createCommit",
+        "title": "My Commit: Criar mensagem de commit",
+        "icon": "$(git-commit)",
+        "category": "My Commit"
+      },
+      {
+        "command": "my-commit.validateCommit",
+        "title": "My Commit: Validar mensagem atual",
+        "icon": "$(check)",
+        "category": "My Commit"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "my-commit.createCommit",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "My Commit",
+      "properties": {
+        "myCommit.types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Sobrescreve a lista padrão de tipos de commit. Deixe vazio para usar os tipos padrão (feat, fix, docs, etc.)"
+        },
+        "myCommit.scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Lista de scopes pré-definidos para o projeto. Quando preenchida, exibe um seletor ao invés de campo livre."
+        },
+        "myCommit.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mostra o item de validação na barra de status ao editar mensagens de commit"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.4.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}
