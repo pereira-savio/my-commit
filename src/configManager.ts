@@ -28,13 +28,11 @@ export class ConfigManager {
   static loadConfig(): CommitConfig | null {
     const filePath = this.getConfigFilePath();
     if (!filePath) {
-      console.log('[ConfigManager] Nenhuma pasta de workspace encontrada');
       return null;
     }
 
     try {
       if (!fs.existsSync(filePath)) {
-        console.log('[ConfigManager] Arquivo de configuração não encontrado');
         return null;
       }
 
@@ -43,7 +41,6 @@ export class ConfigManager {
       const gitCommitConfig = settings[this.CONFIG_KEY];
 
       if (gitCommitConfig) {
-        console.log('[ConfigManager] Configuração carregada com sucesso');
         // Mapeia os campos de [git-commit] para CommitConfig
         const config: CommitConfig = {
           language: gitCommitConfig['editor.language'] || 'pt',
@@ -57,10 +54,8 @@ export class ConfigManager {
         return config;
       }
 
-      console.log(`[ConfigManager] Chave '${this.CONFIG_KEY}' não encontrada`);
       return null;
     } catch (error) {
-      console.error('[ConfigManager] Erro ao carregar configuração:', error);
       return null;
     }
   }
@@ -72,7 +67,6 @@ export class ConfigManager {
     const filePath = this.getConfigFilePath();
     if (!filePath) {
       const msg = 'Nenhuma pasta de workspace encontrada para salvar configurações.';
-      console.error('[ConfigManager]', msg);
       vscode.window.showErrorMessage(msg);
       return false;
     }
@@ -81,18 +75,14 @@ export class ConfigManager {
       // Garante que a pasta .vscode existe
       const vscodeDir = path.dirname(filePath);
       if (!fs.existsSync(vscodeDir)) {
-        console.log('[ConfigManager] Criando diretório:', vscodeDir);
         fs.mkdirSync(vscodeDir, { recursive: true });
       }
 
       // Lê o arquivo existente ou cria um novo
       let settings: Record<string, unknown> = {};
       if (fs.existsSync(filePath)) {
-        console.log('[ConfigManager] Lendo arquivo existente:', filePath);
         const fileContent = fs.readFileSync(filePath, 'utf-8');
         settings = JSON.parse(fileContent);
-      } else {
-        console.log('[ConfigManager] Arquivo não existe, criando novo:', filePath);
       }
 
       // Atualiza apenas [git-commit]
@@ -106,15 +96,15 @@ export class ConfigManager {
       gitCommitConfig['editor.conventionalPattern'] = config.conventionalPattern;
       gitCommitConfig['editor.includeBranch'] = config.includeBranch;
 
+      // Garante que a configuração do Copilot está presente
+      settings['github.copilot.chat.useEditorContext'] = true;
+
       // Escreve de volta ao arquivo com formatação legível
       const jsonContent = JSON.stringify(settings, null, 2);
-      console.log('[ConfigManager] Escrevendo arquivo com conteúdo:', jsonContent);
       fs.writeFileSync(filePath, jsonContent, 'utf-8');
 
       // Gera o arquivo copilot-instructions.md
       await this.generateCopilotInstructions(config);
-
-      console.log('[ConfigManager] Configuração salva com sucesso em:', filePath);
       
       // Oferece a opção de recarregar a janela para o Copilot reconhecer as novas instruções
       vscode.window.showInformationMessage(
@@ -129,7 +119,6 @@ export class ConfigManager {
       return true;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('[ConfigManager] Erro ao salvar configuração:', error);
       vscode.window.showErrorMessage(
         `Erro ao salvar configurações: ${errorMsg}`
       );
@@ -152,10 +141,8 @@ export class ConfigManager {
       delete settings[this.CONFIG_KEY];
 
       fs.writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf-8');
-      console.log('[ConfigManager] Configuração removida com sucesso');
       return true;
     } catch (error) {
-      console.error('[ConfigManager] Erro ao remover configuração:', error);
       return false;
     }
   }
@@ -166,7 +153,6 @@ export class ConfigManager {
   private static async generateCopilotInstructions(config: CommitConfig): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[ConfigManager] Nenhuma pasta de workspace encontrada para gerar copilot-instructions');
       return;
     }
 
@@ -176,24 +162,22 @@ export class ConfigManager {
     try {
       // Garante que a pasta .github existe
       if (!fs.existsSync(githubDir)) {
-        console.log('[ConfigManager] Criando diretório:', githubDir);
         fs.mkdirSync(githubDir, { recursive: true });
       }
 
-      // Determina o idioma para as instruções
-      const language = config.language === 'pt' ? 'português' : 'inglês';
       const isPortuguese = config.language === 'pt';
+      const withScope = config.conventionalPattern === 'with-scope';
 
       // Template das instruções
       const instructionsContent = isPortuguese ? `# Instruções para Copilot - Geração de Mensagens de Commit
 
 ## Padrão Obrigatório: Conventional Commits
 
-Todas as mensagens de commit devem seguir o padrão **Conventional Commits** com escopo.
+Todas as mensagens de commit devem seguir o padrão **Conventional Commits**${withScope ? ' com escopo' : ' sem escopo'}.
 
 ### Formato
 \`\`\`
-tipo(escopo): descrição
+${withScope ? 'tipo(escopo): descrição' : 'tipo: descrição'}
 \`\`\`
 
 ### Tipos Permitidos
@@ -206,11 +190,11 @@ tipo(escopo): descrição
 - **test**: Adição ou atualização de testes
 - **chore**: Atualizações de dependências, configurações, scripts de build
 - **ci**: Alterações em CI/CD
-
+${withScope ? `
 ### Escopo (Obrigatório)
 Indique o contexto/módulo afetado:
 - \`auth\`, \`config\`, \`git\`, \`validator\`, \`ui\`, \`wizard\`, etc.
-
+` : ''}
 ### Descrição
 - Sempre em **português brasileiro**
 - Comece com verbo no infinitivo ou imperativo
@@ -219,17 +203,28 @@ Indique o contexto/módulo afetado:
 - Conciso e descritivo
 
 ### Exemplos Corretos
-- \`feat(validator): adicionar validação de escopo de commits\`
+${withScope
+  ? `- \`feat(validator): adicionar validação de escopo de commits\`
 - \`fix(git): corrigir erro ao gerar mensagem de commit\`
 - \`refactor(wizard): simplificar lógica do assistente interativo\`
 - \`docs(readme): atualizar instruções de instalação\`
 - \`chore(deps): atualizar dependências do projeto\`
-- \`test(validator): adicionar testes unitários para validação\`
+- \`test(validator): adicionar testes unitários para validação\``
+  : `- \`feat: adicionar validação de mensagens de commit\`
+- \`fix: corrigir erro ao gerar mensagem de commit\`
+- \`refactor: simplificar lógica do assistente interativo\`
+- \`docs: atualizar instruções de instalação\`
+- \`chore: atualizar dependências do projeto\`
+- \`test: adicionar testes unitários para validação\``}
 
 ### Exemplos Incorretos ❌
-- \`update stuff\` (vago, não segue padrão)
+${withScope
+  ? `- \`update stuff\` (vago, não segue padrão)
 - \`feat: adicionado novo recurso\` (falta escopo)
-- \`fix(git): Corrigir erro ao gerar mensagens de commit com mais de ${config.maxLength} caracteres.\` (muito longo, tem ponto)
+- \`fix(git): Corrigir erro ao gerar mensagens de commit com mais de ${config.maxLength} caracteres.\` (muito longo, tem ponto)`
+  : `- \`update stuff\` (vago, não segue padrão)
+- \`feat(auth): adicionado novo recurso\` (não deve ter escopo)
+- \`fix: Corrigir erro ao gerar mensagens de commit com mais de ${config.maxLength} caracteres.\` (muito longo, tem ponto)`}
 
 ## Contexto do Projeto
 
@@ -245,27 +240,30 @@ Este é um **extension do VS Code** que padroniza mensagens de commit usando Con
 
 ## Regras Especiais
 
-1. Ao descrever mudanças de **configuração**, use o escopo \`config\`
+${withScope
+  ? `1. Ao descrever mudanças de **configuração**, use o escopo \`config\`
 2. Ao descrever mudanças de **validação**, use o escopo \`validator\`
 3. Ao descrever mudanças da **UI/UX**, use o escopo \`ui\` ou \`wizard\`
-4. Ao descrever alterações de **integração Git**, use o escopo \`git\`
+4. Ao descrever alterações de **integração Git**, use o escopo \`git\``
+  : `1. Não inclua escopo nas mensagens de commit
+2. Descreva a mudança de forma clara e objetiva no tipo e descrição`}
 
 ## Instruções para IA
 
 - Gere mensagens **claras e objetivas**
 - Respeite o limite de **${config.maxLength} caracteres** na primeira linha
 - Use **sempre português brasileiro**
-- Escolha o **tipo e escopo mais apropriado** para o contexto das mudanças
+- Escolha o **tipo mais apropriado** para o contexto das mudanças${withScope ? '\n- Escolha o **escopo mais apropriado** para o contexto das mudanças' : '\n- **Não inclua escopo** nas mensagens de commit'}
 - Se houver múltiplas mudanças em escopos diferentes, gere commits **separados**
 ` : `# Copilot Instructions - Commit Message Generation
 
 ## Mandatory Pattern: Conventional Commits
 
-All commit messages must follow the **Conventional Commits** pattern with scope.
+All commit messages must follow the **Conventional Commits** pattern${withScope ? ' with scope' : ' without scope'}.
 
 ### Format
 \`\`\`
-type(scope): description
+${withScope ? 'type(scope): description' : 'type: description'}
 \`\`\`
 
 ### Allowed Types
@@ -278,11 +276,11 @@ type(scope): description
 - **test**: Test addition or update
 - **chore**: Dependency updates, configurations, build scripts
 - **ci**: CI/CD changes
-
+${withScope ? `
 ### Scope (Required)
 Indicate the affected context/module:
 - \`auth\`, \`config\`, \`git\`, \`validator\`, \`ui\`, \`wizard\`, etc.
-
+` : ''}
 ### Description
 - Always in **English**
 - Start with verb in infinitive or imperative
@@ -291,17 +289,28 @@ Indicate the affected context/module:
 - Concise and descriptive
 
 ### Correct Examples
-- \`feat(validator): add commit scope validation\`
+${withScope
+  ? `- \`feat(validator): add commit scope validation\`
 - \`fix(git): fix error when generating commit message\`
 - \`refactor(wizard): simplify assistant logic\`
 - \`docs(readme): update installation instructions\`
 - \`chore(deps): update project dependencies\`
-- \`test(validator): add unit tests for validation\`
+- \`test(validator): add unit tests for validation\``
+  : `- \`feat: add commit message validation\`
+- \`fix: fix error when generating commit message\`
+- \`refactor: simplify assistant logic\`
+- \`docs: update installation instructions\`
+- \`chore: update project dependencies\`
+- \`test: add unit tests for validation\``}
 
 ### Incorrect Examples ❌
-- \`update stuff\` (vague, does not follow pattern)
+${withScope
+  ? `- \`update stuff\` (vague, does not follow pattern)
 - \`feat: added new feature\` (missing scope)
-- \`fix(git): Fix error when generating commit messages with more than ${config.maxLength} characters.\` (too long, has period)
+- \`fix(git): Fix error when generating commit messages with more than ${config.maxLength} characters.\` (too long, has period)`
+  : `- \`update stuff\` (vague, does not follow pattern)
+- \`feat(auth): added new feature\` (must not have scope)
+- \`fix: Fix error when generating commit messages with more than ${config.maxLength} characters.\` (too long, has period)`}
 
 ## Project Context
 
@@ -317,23 +326,25 @@ This is a **VS Code extension** that standardizes commit messages using Conventi
 
 ## Special Rules
 
-1. When describing **configuration** changes, use the \`config\` scope
+${withScope
+  ? `1. When describing **configuration** changes, use the \`config\` scope
 2. When describing **validation** changes, use the \`validator\` scope
 3. When describing **UI/UX** changes, use the \`ui\` or \`wizard\` scope
-4. When describing **Git integration** changes, use the \`git\` scope
+4. When describing **Git integration** changes, use the \`git\` scope`
+  : `1. Do not include scope in commit messages
+2. Describe the change clearly using only the type and description`}
 
 ## Instructions for AI
 
 - Generate **clear and objective** messages
 - Respect the **${config.maxLength} character** limit on the first line
 - Use the appropriate language consistently
-- Choose the **most appropriate type and scope** for the context of changes
+- Choose the **most appropriate type** for the context of changes${withScope ? '\n- Choose the **most appropriate scope** for the context of changes' : '\n- **Do not include scope** in commit messages'}
 - If there are multiple changes in different scopes, generate **separate commits**
 `;
 
       // Escreve o arquivo
       fs.writeFileSync(instructionsFile, instructionsContent, 'utf-8');
-      console.log('[ConfigManager] Arquivo copilot-instructions.md gerado com sucesso em:', instructionsFile);
     } catch (error) {
       console.error('[ConfigManager] Erro ao gerar copilot-instructions.md:', error);
       // Não lança erro para não interromper o fluxo de salvamento
