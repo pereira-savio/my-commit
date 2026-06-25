@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { CommitConfig } from './configPanel';
 
 export interface CommitParts {
   type: string;
@@ -14,7 +15,7 @@ interface CommitType extends vscode.QuickPickItem {
   description: string;
 }
 
-const DEFAULT_TYPES: CommitType[] = [
+const DEFAULT_TYPES_PT: CommitType[] = [
   { label: 'feat',     description: '✨  Nova funcionalidade' },
   { label: 'fix',      description: '🐛  Correção de bug' },
   { label: 'docs',     description: '📝  Apenas documentação' },
@@ -28,8 +29,113 @@ const DEFAULT_TYPES: CommitType[] = [
   { label: 'revert',   description: '⏪  Reverte um commit anterior' },
 ];
 
+const DEFAULT_TYPES_EN: CommitType[] = [
+  { label: 'feat',     description: '✨  New feature' },
+  { label: 'fix',      description: '🐛  Bug fix' },
+  { label: 'docs',     description: '📝  Documentation only' },
+  { label: 'style',    description: '💄  Formatting, no logic change' },
+  { label: 'refactor', description: '♻️   Refactoring, no new feature or fix' },
+  { label: 'perf',     description: '⚡  Performance improvement' },
+  { label: 'test',     description: '✅  Adding or fixing tests' },
+  { label: 'build',    description: '🏗️   Build system or external dependencies' },
+  { label: 'ci',       description: '👷  CI/CD configuration' },
+  { label: 'chore',    description: '🔧  Other tasks with no code impact' },
+  { label: 'revert',   description: '⏪  Reverts a previous commit' },
+];
+
+interface Strings {
+  typeLabel: string;
+  typePlaceholder: string;
+  scopeLabel: string;
+  scopePrompt: string;
+  scopePlaceholder: string;
+  noScope: string;
+  noScopeDetail: string;
+  breakingLabel: string;
+  breakingPlaceholder: string;
+  notBreaking: string;
+  notBreakingDetail: string;
+  isBreaking: string;
+  isBreakingDetail: string;
+  descLabel: string;
+  descPrompt: string;
+  descPlaceholder: string;
+  descRequired: string;
+  descTooLong: (len: number, max: number) => string;
+  descUppercase: string;
+  descPeriod: string;
+  bodyLabel: string;
+  bodyPrompt: string;
+  bodyPlaceholder: string;
+  breakingFooterPrompt: string;
+  breakingFooterPlaceholder: string;
+  breakingFooterValidation: string;
+}
+
+const PT: Strings = {
+  typeLabel: 'Tipo',
+  typePlaceholder: 'Selecione o tipo do commit',
+  scopeLabel: 'Escopo',
+  scopePrompt: 'Escopo do commit (opcional)',
+  scopePlaceholder: 'ex: auth, api, ui — pressione Enter para pular',
+  noScope: '$(dash)  Sem escopo',
+  noScopeDetail: 'Não especificar escopo',
+  breakingLabel: 'Breaking Change',
+  breakingPlaceholder: 'Esta mudança quebra a compatibilidade com versões anteriores?',
+  notBreaking: '$(check)   Não',
+  notBreakingDetail: 'Mudança compatível com a versão anterior',
+  isBreaking: '$(warning) Sim',
+  isBreakingDetail: 'BREAKING CHANGE — remove ou altera comportamento existente',
+  descLabel: 'Descrição',
+  descPrompt: 'Descrição curta e objetiva do commit (obrigatório)',
+  descPlaceholder: 'ex: adiciona autenticação por OAuth',
+  descRequired: 'A descrição é obrigatória',
+  descTooLong: (l, m) => `Muito longo: ${l}/${m} caracteres`,
+  descUppercase: 'Use letras minúsculas no início da descrição',
+  descPeriod: 'Não termine a descrição com ponto final',
+  bodyLabel: 'Corpo',
+  bodyPrompt: 'Corpo da mensagem (opcional) — explique o quê e por quê',
+  bodyPlaceholder: 'Pressione Enter para pular',
+  breakingFooterPrompt: 'Descreva o que mudou e como migrar',
+  breakingFooterPlaceholder: 'ex: remove o endpoint /api/v1/users, use /api/v2/users',
+  breakingFooterValidation: 'O footer deve começar com "BREAKING CHANGE:"',
+};
+
+const EN: Strings = {
+  typeLabel: 'Type',
+  typePlaceholder: 'Select commit type',
+  scopeLabel: 'Scope',
+  scopePrompt: 'Commit scope (optional)',
+  scopePlaceholder: 'e.g.: auth, api, ui — press Enter to skip',
+  noScope: '$(dash)  No scope',
+  noScopeDetail: 'Do not specify scope',
+  breakingLabel: 'Breaking Change',
+  breakingPlaceholder: 'Does this change break backward compatibility?',
+  notBreaking: '$(check)   No',
+  notBreakingDetail: 'Backward compatible change',
+  isBreaking: '$(warning) Yes',
+  isBreakingDetail: 'BREAKING CHANGE — removes or alters existing behavior',
+  descLabel: 'Description',
+  descPrompt: 'Short, objective commit description (required)',
+  descPlaceholder: 'e.g.: add OAuth authentication',
+  descRequired: 'Description is required',
+  descTooLong: (l, m) => `Too long: ${l}/${m} characters`,
+  descUppercase: 'Start description with a lowercase letter',
+  descPeriod: 'Do not end description with a period',
+  bodyLabel: 'Body',
+  bodyPrompt: 'Message body (optional) — explain what and why',
+  bodyPlaceholder: 'Press Enter to skip',
+  breakingFooterPrompt: 'Describe what changed and how to migrate',
+  breakingFooterPlaceholder: 'e.g.: removes /api/v1/users endpoint, use /api/v2/users',
+  breakingFooterValidation: 'Footer must start with "BREAKING CHANGE:"',
+};
+
 /** Monta a mensagem final de commit a partir das partes */
-export function buildCommitMessage(parts: CommitParts): string {
+export function buildCommitMessage(
+  parts: CommitParts,
+  config?: CommitConfig,
+  branchName?: string
+): string {
   const scope = parts.scope ? `(${parts.scope})` : '';
   const bang = parts.breaking ? '!' : '';
   let message = `${parts.type}${scope}${bang}: ${parts.description}`;
@@ -44,147 +150,166 @@ export function buildCommitMessage(parts: CommitParts): string {
     message += `\n\nBREAKING CHANGE: ${parts.description}`;
   }
 
+  if (config?.includeBranch && branchName) {
+    message += `\n\nBranch: ${branchName}`;
+  }
+
   return message;
 }
 
 /**
- * Executa o wizard multi-step para criar uma mensagem Conventional Commit.
- * Retorna `undefined` se o usuário cancelar em qualquer etapa.
+ * Executa o wizard multi-step para criar a mensagem de commit,
+ * respeitando as regras definidas no ConfigPanel.
  */
 export async function runCommitWizard(
   customTypes: string[],
-  customScopes: string[]
+  customScopes: string[],
+  commitConfig: CommitConfig,
+  branchName?: string
 ): Promise<string | undefined> {
-  const typeItems: CommitType[] =
-    customTypes.length > 0
-      ? customTypes.map(t => ({ label: t, description: '' }))
-      : DEFAULT_TYPES;
+  const t: Strings = commitConfig.language === 'en' ? EN : PT;
 
-  // ── Passo 1: Tipo ──────────────────────────────────────────────────────────
-  const typeItem = await vscode.window.showQuickPick(typeItems, {
-    title: 'My Commit  (1 / 5) — Tipo',
-    placeHolder: 'Selecione o tipo do commit',
-    ignoreFocusOut: true,
-    matchOnDescription: true,
-  });
-  if (!typeItem) {
-    return undefined;
-  }
-
-  // ── Passo 2: Scope ─────────────────────────────────────────────────────────
-  let scope: string | undefined;
-
-  if (customScopes.length > 0) {
-    const NO_SCOPE = '$(dash)  Sem escopo';
-    const scopeItems = [
-      { label: NO_SCOPE, description: 'Não especificar escopo' },
-      ...customScopes.map(s => ({ label: s, description: '' })),
-    ];
-    const scopeItem = await vscode.window.showQuickPick(scopeItems, {
-      title: 'My Commit  (2 / 5) — Escopo',
-      placeHolder: 'Selecione o escopo (opcional)',
-      ignoreFocusOut: true,
-    });
-    if (scopeItem === undefined) {
-      return undefined;
-    }
-    if (scopeItem.label !== NO_SCOPE) {
-      scope = scopeItem.label;
-    }
-  } else {
-    const scopeInput = await vscode.window.showInputBox({
-      title: 'My Commit  (2 / 5) — Escopo',
-      prompt: 'Escopo do commit (opcional)',
-      placeHolder: 'ex: auth, api, ui — pressione Enter para pular',
-      ignoreFocusOut: true,
-    });
-    if (scopeInput === undefined) {
-      return undefined;
-    }
-    scope = scopeInput.trim() || undefined;
-  }
-
-  // ── Passo 3: Breaking change ───────────────────────────────────────────────
-  const breakingOptions = [
-    { label: '$(check)   Não', detail: 'Mudança compatível com a versão anterior', isBreaking: false },
-    { label: '$(warning) Sim', detail: 'BREAKING CHANGE — remove ou altera comportamento existente', isBreaking: true },
-  ];
-  const breakingItem = await vscode.window.showQuickPick(breakingOptions, {
-    title: 'My Commit  (3 / 5) — Breaking Change',
-    placeHolder: 'Esta mudança quebra a compatibilidade com versões anteriores?',
-    ignoreFocusOut: true,
-    matchOnDetail: true,
-  });
-  if (breakingItem === undefined) {
-    return undefined;
-  }
-  const breaking: boolean = breakingItem.isBreaking;
-
-  // ── Passo 4: Descrição curta ───────────────────────────────────────────────
-  const description = await vscode.window.showInputBox({
-    title: 'My Commit  (4 / 5) — Descrição',
-    prompt: 'Descrição curta e objetiva do commit (obrigatório)',
-    placeHolder: 'ex: adiciona autenticação por OAuth',
-    ignoreFocusOut: true,
-    validateInput(value) {
-      if (!value.trim()) {
-        return 'A descrição é obrigatória';
-      }
-      if (value.trim().length > 100) {
-        return `Muito longo: ${value.trim().length}/100 caracteres`;
-      }
-      if (/^[A-Z]/.test(value.trim())) {
-        return 'Use letras minúsculas no início da descrição';
-      }
-      if (/\.$/.test(value.trim())) {
-        return 'Não termine a descrição com ponto final';
-      }
-      return null;
-    },
-  });
-  if (description === undefined) {
-    return undefined;
-  }
-
-  // ── Passo 5: Corpo (opcional) ──────────────────────────────────────────────
-  const body = await vscode.window.showInputBox({
-    title: 'My Commit  (5 / 5) — Corpo',
-    prompt: 'Corpo da mensagem (opcional) — explique o quê e por quê',
-    placeHolder: 'Pressione Enter para pular',
-    ignoreFocusOut: true,
-  });
-  if (body === undefined) {
-    return undefined;
-  }
-
-  // ── Passo extra: Footer para breaking changes ──────────────────────────────
-  let footer: string | undefined;
-  if (breaking) {
-    const footerInput = await vscode.window.showInputBox({
-      title: 'My Commit — BREAKING CHANGE',
-      prompt: 'Descreva o que mudou e como migrar',
-      placeHolder: 'ex: remove o endpoint /api/v1/users, use /api/v2/users',
-      value: 'BREAKING CHANGE: ',
+  // ── Modo simples (sem Conventional Commit) ────────────────────────────────
+  if (!commitConfig.conventionalCommit) {
+    const description = await vscode.window.showInputBox({
+      title: `My Commit  (1 / 1) — ${t.descLabel}`,
+      prompt: t.descPrompt,
+      placeHolder: t.descPlaceholder,
       ignoreFocusOut: true,
       validateInput(value) {
-        if (!value.startsWith('BREAKING CHANGE:')) {
-          return 'O footer de breaking change deve começar com "BREAKING CHANGE:"';
+        if (!value.trim()) { return t.descRequired; }
+        if (value.trim().length > commitConfig.maxLength) {
+          return t.descTooLong(value.trim().length, commitConfig.maxLength);
         }
         return null;
       },
     });
-    if (footerInput === undefined) {
-      return undefined;
+    if (description === undefined) { return undefined; }
+
+    let message = description.trim();
+    if (commitConfig.includeBranch && branchName) {
+      message += `\n\nBranch: ${branchName}`;
     }
+    return message;
+  }
+
+  // ── Modo Conventional Commit ──────────────────────────────────────────────
+  const hasScope = commitConfig.conventionalPattern === 'with-scope';
+  const totalSteps = hasScope ? 5 : 4;
+  let step = 1;
+
+  // Passo: Tipo
+  const defaultTypes = commitConfig.language === 'en' ? DEFAULT_TYPES_EN : DEFAULT_TYPES_PT;
+  const typeItems: CommitType[] =
+    customTypes.length > 0
+      ? customTypes.map(label => ({ label, description: '' }))
+      : defaultTypes;
+
+  const typeItem = await vscode.window.showQuickPick(typeItems, {
+    title: `My Commit  (${step++} / ${totalSteps}) — ${t.typeLabel}`,
+    placeHolder: t.typePlaceholder,
+    ignoreFocusOut: true,
+    matchOnDescription: true,
+  });
+  if (!typeItem) { return undefined; }
+
+  // Passo: Escopo (apenas se o padrão inclui scope)
+  let scope: string | undefined;
+  if (hasScope) {
+    if (customScopes.length > 0) {
+      const NO_SCOPE = t.noScope;
+      const scopeItems = [
+        { label: NO_SCOPE, description: t.noScopeDetail },
+        ...customScopes.map(s => ({ label: s, description: '' })),
+      ];
+      const scopeItem = await vscode.window.showQuickPick(scopeItems, {
+        title: `My Commit  (${step++} / ${totalSteps}) — ${t.scopeLabel}`,
+        placeHolder: t.scopePlaceholder,
+        ignoreFocusOut: true,
+      });
+      if (scopeItem === undefined) { return undefined; }
+      if (scopeItem.label !== NO_SCOPE) { scope = scopeItem.label; }
+    } else {
+      const scopeInput = await vscode.window.showInputBox({
+        title: `My Commit  (${step++} / ${totalSteps}) — ${t.scopeLabel}`,
+        prompt: t.scopePrompt,
+        placeHolder: t.scopePlaceholder,
+        ignoreFocusOut: true,
+      });
+      if (scopeInput === undefined) { return undefined; }
+      scope = scopeInput.trim() || undefined;
+    }
+  }
+
+  // Passo: Breaking change
+  const breakingOptions = [
+    { label: t.notBreaking, detail: t.notBreakingDetail, isBreaking: false },
+    { label: t.isBreaking,  detail: t.isBreakingDetail,  isBreaking: true  },
+  ];
+  const breakingItem = await vscode.window.showQuickPick(breakingOptions, {
+    title: `My Commit  (${step++} / ${totalSteps}) — ${t.breakingLabel}`,
+    placeHolder: t.breakingPlaceholder,
+    ignoreFocusOut: true,
+    matchOnDetail: true,
+  });
+  if (breakingItem === undefined) { return undefined; }
+  const breaking = breakingItem.isBreaking;
+
+  // Passo: Descrição curta
+  const description = await vscode.window.showInputBox({
+    title: `My Commit  (${step++} / ${totalSteps}) — ${t.descLabel}`,
+    prompt: t.descPrompt,
+    placeHolder: t.descPlaceholder,
+    ignoreFocusOut: true,
+    validateInput(value) {
+      if (!value.trim()) { return t.descRequired; }
+      if (value.trim().length > commitConfig.maxLength) {
+        return t.descTooLong(value.trim().length, commitConfig.maxLength);
+      }
+      if (/^[A-Z]/.test(value.trim())) { return t.descUppercase; }
+      if (/\.$/.test(value.trim())) { return t.descPeriod; }
+      return null;
+    },
+  });
+  if (description === undefined) { return undefined; }
+
+  // Passo: Corpo (opcional)
+  const body = await vscode.window.showInputBox({
+    title: `My Commit  (${step++} / ${totalSteps}) — ${t.bodyLabel}`,
+    prompt: t.bodyPrompt,
+    placeHolder: t.bodyPlaceholder,
+    ignoreFocusOut: true,
+  });
+  if (body === undefined) { return undefined; }
+
+  // Passo extra: Footer para breaking changes
+  let footer: string | undefined;
+  if (breaking) {
+    const footerInput = await vscode.window.showInputBox({
+      title: 'My Commit — BREAKING CHANGE',
+      prompt: t.breakingFooterPrompt,
+      placeHolder: t.breakingFooterPlaceholder,
+      value: 'BREAKING CHANGE: ',
+      ignoreFocusOut: true,
+      validateInput(value) {
+        if (!value.startsWith('BREAKING CHANGE:')) { return t.breakingFooterValidation; }
+        return null;
+      },
+    });
+    if (footerInput === undefined) { return undefined; }
     footer = footerInput.trim() || undefined;
   }
 
-  return buildCommitMessage({
-    type: typeItem.label,
-    scope,
-    breaking,
-    description: description.trim(),
-    body: body.trim() || undefined,
-    footer,
-  });
+  return buildCommitMessage(
+    {
+      type: typeItem.label,
+      scope,
+      breaking,
+      description: description.trim(),
+      body: body.trim() || undefined,
+      footer,
+    },
+    commitConfig,
+    branchName
+  );
 }

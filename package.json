@@ -55,8 +55,14 @@
       "scm/title": [
         {
           "command": "my-commit.createCommit",
-          "group": "navigation",
-          "when": "scmProvider == git"
+          "group": "navigation"
+        }
+      ],
+      "scm/resourceGroup/context": [
+        {
+          "command": "my-commit.createCommit",
+          "group": "inline",
+          "when": "scmResourceGroup == workingTree"
         }
       ]
     },

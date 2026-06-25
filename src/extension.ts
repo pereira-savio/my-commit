@@ -1,12 +1,19 @@
 import * as vscode from 'vscode';
 import type { GitExtension, GitAPI, Repository } from './git.d';
-import { runCommitWizard } from './commitWizard';
 import { validateCommitMessage } from './validator';
+import { ConfigPanel } from './configPanel';
+import { ConfigManager } from './configManager';
 
 let statusBarItem: vscode.StatusBarItem;
 let pollInterval: ReturnType<typeof setInterval> | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  // ── Carrega configurações do arquivo .vscode/settings.json ────────────────
+  const loadedConfig = ConfigManager.loadConfig();
+  if (loadedConfig) {
+    console.log('[My Commit] Configurações carregadas de .vscode/settings.json');
+  }
+
   // ── Status bar ─────────────────────────────────────────────────────────────
   statusBarItem = vscode.window.createStatusBarItem(
     'my-commit.validation',
@@ -20,20 +27,24 @@ export function activate(context: vscode.ExtensionContext): void {
   const createCommand = vscode.commands.registerCommand(
     'my-commit.createCommit',
     async () => {
-      const config = vscode.workspace.getConfiguration('myCommit');
-      const customTypes: string[] = config.get('types') ?? [];
-      const customScopes: string[] = config.get('scopes') ?? [];
-
-      const message = await runCommitWizard(customTypes, customScopes);
-      if (!message) {
-        return;
+      console.log('[My Commit] Comando de criar commit acionado');
+      
+      // Abre o painel de configurações e aguarda o usuário salvar
+      const commitConfig = await ConfigPanel.show();
+      if (!commitConfig) {
+        console.log('[My Commit] Usuário fechou o painel sem salvar');
+        return; // usuário fechou o painel sem salvar
       }
 
-      const set = await setScmInputValue(message);
-      if (set) {
-        vscode.window.showInformationMessage(
-          `✔ Mensagem definida: ${message.split('\n')[0]}`
-        );
+      console.log('[My Commit] Configuração recebida:', commitConfig);
+      
+      // Persiste as configurações no arquivo .vscode/settings.json
+      const success = await ConfigManager.saveConfig(commitConfig);
+      if (success) {
+        console.log('[My Commit] Configuração salva com sucesso');
+        vscode.window.showInformationMessage('✔ Configurações do My Commit salvas com sucesso em .vscode/settings.json!');
+      } else {
+        console.log('[My Commit] Falha ao salvar configuração');
       }
     }
   );
