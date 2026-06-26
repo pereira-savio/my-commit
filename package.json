@@ -3,7 +3,7 @@
   "displayName": "My Commit",
   "description": "Padroniza mensagens de commit usando Conventional Commits com um wizard interativo no Source Control",
   "version": "0.2.0",
-  "publisher": "pereira-savio",
+  "publisher": "MyCommit",
   "engines": {
     "vscode": "^1.85.0"
   },
